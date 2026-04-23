@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <title>Physics Chalkboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        :root { --chalk: #f5f5f5; --board-bg: #1e3d32; }
+        body { margin: 0; font-family: 'Caveat', cursive; overflow: hidden; background: #222; }
+
+        /* מצב לוח (למחשב) */
+        #board { 
+            display: none; height: 100vh; background: var(--board-bg);
+            color: var(--chalk); padding: 50px; box-sizing: border-box;
+            border: 15px solid #5d4037; box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
+        }
+        #math-output { font-size: 4rem; text-shadow: 2px 2px 5px rgba(255,255,255,0.2); }
+
+        /* מצב שלט (לטאבלט) */
+        #remote { display: none; height: 100vh; background: #f0f0f0; padding: 20px; box-sizing: border-box; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .btn { 
+            background: white; border: 2px solid #ccc; padding: 20px; 
+            font-size: 1.5rem; border-radius: 12px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn:active { background: #e0e0e0; transform: scale(0.95); }
+        .status { font-family: sans-serif; font-size: 0.8rem; margin-bottom: 10px; color: #666; }
+        
+        #input-preview { 
+            width: 100%; height: 60px; font-size: 1.2rem; margin-bottom: 20px;
+            padding: 10px; border-radius: 8px; border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<div id="board">
+    <div class="status" id="board-id-display">ממתין לחיבור...</div>
+    <div id="math-output"></div>
+</div>
+
+<div id="remote">
+    <div class="status" id="conn-status">התחבר ל-ID שמופיע במחשב:</div>
+    <input type="text" id="target-id" placeholder="הכנס ID מהמחשב" style="margin-bottom:10px;">
+    <button onclick="connectToBoard()">התחבר</button>
+    <hr>
+    <input type="text" id="input-preview" placeholder="קוד יופיע כאן...">
+    
+    <div class="grid">
+        <button class="btn" onclick="send('\\frac{}{}')">$$\frac{\Box}{\Box}$$</button>
+        <button class="btn" onclick="send('^{}')">$$x^\Box$$</button>
+        <button class="btn" onclick="send('\\sqrt{}')">$$\sqrt{\Box}$$</button>
+        <button class="btn" onclick="send('\\Delta')">Δ</button>
+        <button class="btn" onclick="send('\\approx')">≈</button>
+        <button class="btn" onclick="send(':')">$$:$$</button>
+        <button class="btn" onclick="send('\\cdot')">$$\cdot$$</button>
+        <button class="btn" onclick="send('\\pi')">π</button>
+        <button class="btn" onclick="send('AC')" style="background:#ffcccc;">נקה</button>
+    </div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode') || 'board'; // ברירת מחדל לוח
+    const board = document.getElementById('board');
+    const remote = document.getElementById('remote');
+    const peer = new Peer();
+    let conn;
+
+    // אתחול לפי מצב
+    if (mode === 'board') {
+        board.style.display = 'block';
+        peer.on('open', id => {
+            document.getElementById('board-id-display').innerText = "קוד לוח: " + id;
+        });
+        peer.on('connection', c => {
+            conn = c;
+            conn.on('data', data => renderMath(data));
+            document.getElementById('board-id-display').innerText = "מחובר!";
+        });
+    } else {
+        remote.style.display = 'block';
+    }
+
+    // פונקציות לשלט
+    function connectToBoard() {
+        const id = document.getElementById('target-id').value;
+        conn = peer.connect(id);
+        conn.on('open', () => {
+            document.getElementById('conn-status').innerText = "מחובר ללוח!";
+        });
+    }
+
+    function send(val) {
+        if (!conn) return alert("לא מחובר ללוח!");
+        const input = document.getElementById('input-preview');
+        
+        if (val === 'AC') {
+            input.value = '';
+        } else {
+            const start = input.selectionStart;
+            input.value = input.value.substring(0, start) + val + input.value.substring(input.selectionEnd);
+            // אם זה מבנה ריק, שים את הסמן בפנים
+            if (val.includes('{}')) {
+                input.selectionStart = start + val.indexOf('{') + 1;
+                input.selectionEnd = input.selectionStart;
+            }
+        }
+        conn.send(input.value);
+        input.focus();
+    }
+
+    // פונקציות ללוח
+    function renderMath(latex) {
+        const output = document.getElementById('math-output');
+        try {
+            katex.render(latex, output, {
+                throwOnError: false,
+                displayMode: true
+            });
+        } catch (e) {}
+    }
+
+    // תמיכה בחיצים מהמקלדת הפיזית במחשב (אם המקלדת מחוברת למחשב הלוח)
+    document.addEventListener('keydown', (e) => {
+        if (mode === 'board' && conn) {
+            // כאן אפשר להוסיף לוגיקה אם המקלדת מחוברת למחשב הלוח
+        }
+    });
+</script>
+</body>
+</html>
